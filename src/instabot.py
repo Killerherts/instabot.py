@@ -11,8 +11,13 @@ import json
 import atexit
 import signal
 import itertools
+import sys
+import os
+from mmap import mmap
+import os.path
 
 from unfollow_protocol import unfollow_protocol
+
 
 class InstaBot:
     """
@@ -102,6 +107,41 @@ class InstaBot:
     # For new_auto_mod
     next_iteration = {"Like": 0, "Follow": 0, "Unfollow": 0, "Comments": 0}
 
+    def removeLine(self, num):
+        f=os.open(os.path.splitext(sys.argv[0])[0]+'.txt', os.O_RDWR)
+        m=mmap(f,0)
+        p=0
+        for i in range(num-1):
+            p=m.find('\n',p)+1
+        q=m.find('\n',p)
+        m[p:q] = ' '*(q-p)
+        os.close(f)
+
+    def writeOutput(self, log_string):
+        ####
+        # sys.argv[0] returns filename, 
+        # os.path.splitext returns a array (tuple) with 2 strings filename & file_extension
+        if os.path.isfile(os.path.splitext(sys.argv[0])[0]+'.txt'):
+            f = open(os.path.splitext(sys.argv[0])[0]+'.txt', 'r+')
+        else :
+            f = open(os.path.splitext(sys.argv[0])[0]+'.txt', 'w+')
+        
+        num_lines = sum(1 for line in f)
+        #delete lines when file have more than 50
+        while (num_lines > 50):
+            f.seek(0)
+            f.readline() #read the first line and throw it out
+            data = f.read() #read the rest
+            f.seek(0) #set the cursor to the top of the file
+            f.write(data) #write the data back
+            f.truncate() #set the file size to the current size
+            num_lines -= 1
+            
+        
+        print >> f, 'Info: ', log_string
+        f.close()
+        ####
+
     def __init__(self, login, password,
                  like_per_day=1000,
                  media_max_like=50,
@@ -181,6 +221,7 @@ class InstaBot:
         log_string = 'Instabot v1.0.1 started at %s:\n' % \
                      (now_time.strftime("%d.%m.%Y %H:%M"))
         self.write_log(log_string)
+        self.writeOutput(log_string)
         self.login()
         self.populate_user_blacklist()
         signal.signal(signal.SIGTERM, self.cleanup)
@@ -197,14 +238,17 @@ class InstaBot:
             self.user_blacklist[user]=id_user
             log_string = "Blacklisted user %s added with ID: %s" % (user, id_user)
             self.write_log(log_string)
+            self.writeOutput(log_string)
             time.sleep(5 * random.random())
 
         log_string = "Completed populating user blacklist with IDs"
         self.write_log(log_string)
+        self.writeOutput(log_string)
 
     def login(self):
         log_string = 'Trying to login as %s...\n' % (self.user_login)
         self.write_log(log_string)
+        self.writeOutput(log_string)
         self.s.cookies.update({'sessionid': '', 'mid': '', 'ig_pr': '1',
                                'ig_vw': '1920', 'csrftoken': '',
                                's_network': '', 'ds_user_id': ''})
@@ -238,11 +282,14 @@ class InstaBot:
                 self.login_status = True
                 log_string = '%s login success!' % (self.user_login)
                 self.write_log(log_string)
+                self.writeOutput(log_string)
             else:
                 self.login_status = False
                 self.write_log('Login error! Check your login data!')
+                self.writeOutput('Login error! Check your login data!')
         else:
             self.write_log('Login error! Connection error!')
+            self.writeOutput('Login error! Connection error!')
 
     def logout(self):
         now_time = datetime.datetime.now()
@@ -250,17 +297,21 @@ class InstaBot:
                      (self.like_counter, self.follow_counter,
                       self.unfollow_counter, self.comments_counter)
         self.write_log(log_string)
+        self.writeOutput(log_string)
         work_time = datetime.datetime.now() - self.bot_start
         log_string = 'Bot work time: %s' % (work_time)
         self.write_log(log_string)
+        self.writeOutput(log_string)
 
         try:
             logout_post = {'csrfmiddlewaretoken': self.csrftoken}
             logout = self.s.post(self.url_logout, data=logout_post)
             self.write_log("Logout success!")
+            self.writeOutput("Logout success!")
             self.login_status = False
         except:
             self.write_log("Logout error!")
+            self.writeOutput("Logout error!")
 
     def cleanup(self, *_):
         # Unfollow all bot follow
@@ -268,11 +319,13 @@ class InstaBot:
             for f in self.bot_follow_list:
                 log_string = "Trying to unfollow: %s" % (f[0])
                 self.write_log(log_string)
+                self.writeOutput(log_string)
                 self.unfollow_on_cleanup(f[0])
                 sleeptime = random.randint(self.unfollow_break_min, self.unfollow_break_max)
                 log_string = "Pausing for %i seconds... %i of %i" % (
                 sleeptime, self.unfollow_counter, self.follow_counter)
                 self.write_log(log_string)
+                self.writeOutput(log_string)
                 time.sleep(sleeptime)
                 self.bot_follow_list.remove(f)
 
@@ -287,6 +340,7 @@ class InstaBot:
         if (self.login_status):
             log_string = "Get media id by tag: %s" % (tag)
             self.write_log(log_string)
+            self.writeOutput(log_string)
             if self.login_status == 1:
                 url_tag = '%s%s%s' % (self.url_tag, tag, '/')
                 try:
@@ -309,6 +363,7 @@ class InstaBot:
                 except:
                     self.media_by_tag = []
                     self.write_log("Except on get_media!")
+                    self.writeOutput("Except on get_media!")
             else:
                 return 0
 
@@ -330,9 +385,11 @@ class InstaBot:
                             for blacklisted_user_name, blacklisted_user_id in self.user_blacklist.items():
                                 if (self.media_by_tag[i]['owner']['id'] == blacklisted_user_id):
                                     self.write_log("Not liking media owned by blacklisted user: " + blacklisted_user_name)
+                                    self.writeOutput("Not liking media owned by blacklisted user: " + blacklisted_user_name)
                                     return False
                             if (self.media_by_tag[i]['owner']['id'] == self.user_id):
                                 self.write_log("Keep calm - It's your own media ;)")
+                                self.writeOutput("Keep calm - It's your own media ;)")
                                 return False
 
                             try:
@@ -343,14 +400,17 @@ class InstaBot:
                                 if tags.intersection(tag_blacklist):
                                         matching_tags = ', '.join(tags.intersection(tag_blacklist))
                                         self.write_log("Not liking media with blacklisted tag(s): " + matching_tags)
+                                        self.writeOutput("Not liking media with blacklisted tag(s): " + matching_tags)
                                         return False
                             except:
                                 self.write_log("Couldn't find caption - not liking")
+                                self.writeOutput("Couldn't find caption - not liking")
                                 return False
 
                             log_string = "Trying to like media: %s" % \
                                          (self.media_by_tag[i]['id'])
                             self.write_log(log_string)
+                            self.writeOutput(log_string)
                             like = self.like(self.media_by_tag[i]['id'])
                             # comment = self.comment(self.media_by_tag[i]['id'], 'Cool!')
                             # follow = self.follow(self.media_by_tag[i]["owner"]["id"])
@@ -363,10 +423,12 @@ class InstaBot:
                                                  (self.media_by_tag[i]['id'],
                                                   self.like_counter)
                                     self.write_log(log_string)
+                                    self.writeOutput(log_string)
                                 elif like.status_code == 400:
                                     log_string = "Not liked: %i" \
                                                  % (like.status_code)
                                     self.write_log(log_string)
+                                    self.writeOutput(log_string)
                                     # Some error. If repeated - can be ban!
                                     if self.error_400 >= self.error_400_to_ban:
                                         # Look like you banned!
@@ -377,6 +439,7 @@ class InstaBot:
                                     log_string = "Not liked: %i" \
                                                  % (like.status_code)
                                     self.write_log(log_string)
+                                    self.writeOutput(log_string)
                                     return False
                                     # Some error.
                                 i += 1
@@ -393,6 +456,7 @@ class InstaBot:
                         return False
             else:
                 self.write_log("No media to like!")
+                self.writeOutput("No media to like!")
 
     def like(self, media_id):
         """ Send http request to like media by ID """
@@ -403,6 +467,7 @@ class InstaBot:
                 last_liked_media_id = media_id
             except:
                 self.write_log("Except on like!")
+                self.writeOutput("Except on like!")
                 like = 0
             return like
 
@@ -414,6 +479,7 @@ class InstaBot:
                 unlike = self.s.post(url_unlike)
             except:
                 self.write_log("Except on unlike!")
+                self.writeOutput("Except on unlike!")
                 unlike = 0
             return unlike
 
@@ -428,9 +494,11 @@ class InstaBot:
                     self.comments_counter += 1
                     log_string = 'Write: "%s". #%i.' % (comment_text, self.comments_counter)
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                 return comment
             except:
                 self.write_log("Except on comment!")
+                self.writeOutput("Except on comment!")
         return False
 
     def follow(self, user_id):
@@ -443,9 +511,11 @@ class InstaBot:
                     self.follow_counter += 1
                     log_string = "Followed: %s #%i." % (user_id, self.follow_counter)
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                 return follow
             except:
                 self.write_log("Except on follow!")
+                self.writeOutput("Except on follow!")
         return False
 
     def unfollow(self, user_id):
@@ -458,9 +528,11 @@ class InstaBot:
                     self.unfollow_counter += 1
                     log_string = "Unfollow: %s #%i." % (user_id, self.unfollow_counter)
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                 return unfollow
             except:
                 self.write_log("Exept on unfollow!")
+                self.writeOutput("Exept on unfollow!")
         return False
 
     def unfollow_on_cleanup(self, user_id):
@@ -473,24 +545,29 @@ class InstaBot:
                     self.unfollow_counter += 1
                     log_string = "Unfollow: %s #%i of %i." % (user_id, self.unfollow_counter, self.follow_counter)
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                 else:
                     log_string = "Slow Down - Pausing for 5 minutes so we don't get banned!"
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                     time.sleep(300)
                     unfollow = self.s.post(url_unfollow)
                     if unfollow.status_code == 200:
                         self.unfollow_counter += 1
                         log_string = "Unfollow: %s #%i of %i." % (user_id, self.unfollow_counter, self.follow_counter)
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                     else:
                         log_string = "Still no good :( Skipping and pausing for another 5 minutes"
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                         time.sleep(300)
                     return False
                 return unfollow
             except:
                 log_string = "Except on unfollow... Looks like a network error"
                 self.write_log(log_string)
+                self.writeOutput(log_string)
         return False
 
     def auto_mod(self):
@@ -541,9 +618,11 @@ class InstaBot:
                         self.follow_per_day != 0 and len(self.media_by_tag) > 0:
             if self.media_by_tag[0]["owner"]["id"] == self.user_id:
                 self.write_log("Keep calm - It's your own profile ;)")
+                self.writeOutput("Keep calm - It's your own profile ;)")
                 return
             log_string = "Trying to follow: %s" % (self.media_by_tag[0]["owner"]["id"])
             self.write_log(log_string)
+            self.writeOutput(log_string)
 
             if self.follow(self.media_by_tag[0]["owner"]["id"]) != False:
                 self.bot_follow_list.append([self.media_by_tag[0]["owner"]["id"],
@@ -559,6 +638,7 @@ class InstaBot:
                     if time.time() > (f[1] + self.follow_time):
                         log_string = "Trying to unfollow #%i: "
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                         self.auto_unfollow()
                         self.bot_follow_list.remove(f)
                         self.next_iteration["Unfollow"] = time.time() + \
@@ -573,6 +653,7 @@ class InstaBot:
             comment_text = self.generate_comment()
             log_string = "Trying to comment: %s" % (self.media_by_tag[0]['id'])
             self.write_log(log_string)
+            self.writeOutput(log_string)
             if self.comment(self.media_by_tag[0]['id'], comment_text) != False:
                 self.next_iteration["Comments"] = time.time() + \
                                                   self.add_time(self.comments_delay)
@@ -608,6 +689,7 @@ class InstaBot:
         all_data = json.loads(check_comment.text)
         if all_data['media']['owner']['id'] == self.user_id:
                 self.write_log("Keep calm - It's your own media ;)")
+                self.writeOutput("Keep calm - It's your own media ;)")
                 # Del media to don't loop on it
                 del self.media_by_tag[0]
                 return True
@@ -615,6 +697,7 @@ class InstaBot:
         for d in comment_list:
             if d['user']['id'] == self.user_id:
                 self.write_log("Keep calm - Media already commented ;)")
+                self.writeOutput("Keep calm - Media already commented ;)")
                 # Del media to don't loop on it
                 del self.media_by_tag[0]
                 return True
@@ -635,6 +718,7 @@ class InstaBot:
             now_time = datetime.datetime.now()
             log_string = "%s : Get user info \n%s"%(self.user_login,now_time.strftime("%d.%m.%Y %H:%M"))
             self.write_log(log_string)
+            self.writeOutput(log_string)
             if self.login_status == 1:
                 url_tag = 'https://www.instagram.com/%s/'%(current_user)
                 try:
@@ -655,6 +739,7 @@ class InstaBot:
                     i=0
                     log_string="Checking user info.."
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
 
 
                     while i<1:
@@ -667,10 +752,13 @@ class InstaBot:
                         has_requested_viewer = self.user_info[0]['user']['has_requested_viewer']
                         log_string = "Follower : %i" % (follower)
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                         log_string = "Following : %s" % (follows)
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                         log_string = "Media : %i" % (media)
                         self.write_log(log_string)
+                        self.writeOutput(log_string)
                         if follower/follows > 2:
                             self.is_selebgram = True
                             self.is_fake_account = False
@@ -710,6 +798,7 @@ class InstaBot:
                 except:
                     media_on_feed = []
                     self.write_log("Except on get_info!")
+                    self.writeOutput("Except on get_info!")
                     time.sleep(20)
                     return 0
             else:
@@ -729,6 +818,7 @@ class InstaBot:
             now_time = datetime.datetime.now()
             log_string = "%s : Get media id on recent feed"%(self.user_login)
             self.write_log(log_string)
+            self.writeOutput(log_string)
             if self.login_status == 1:
                 url_tag = 'https://www.instagram.com/#'
                 try:
@@ -749,9 +839,11 @@ class InstaBot:
                                             ['feed']['media']['nodes'])
                     log_string="Media in recent feed = %i"%(len(self.media_on_feed))
                     self.write_log(log_string)
+                    self.writeOutput(log_string)
                 except:
                     self.media_on_feed = []
                     self.write_log("Except on get_media!")
+                    self.writeOutput("Except on get_media!")
                     time.sleep(20)
                     return 0
             else:
