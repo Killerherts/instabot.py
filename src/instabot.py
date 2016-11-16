@@ -183,23 +183,24 @@ class InstaBot:
         self.write_log(log_string)
         self.login()
         self.populate_user_blacklist()
-        # signal.signal(signal.SIGTERM, self.cleanup)
-        # atexit.register(self.cleanup)
+        signal.signal(signal.SIGTERM, self.cleanup)
+        atexit.register(self.cleanup)
 
     def populate_user_blacklist(self):
         for user in self.user_blacklist:
 
             user_id_url = self.url_user_detail % (user)
             info = self.s.get(user_id_url)
-            # Valiaditon if user exists
+            # Validation if user exists
             if info.status_code == 404:
-                # if not exists show test
-                log_string = "User {} from the blacklist does not exist".format(user)
+                # if user not exists show does not exists
+                log_string = "User {} from the blacklist does not exists".format(user)
+                self.write_log(log_string)
             else:
-                # f user exists continue normal
+                # if user exists continue normal
                 all_data = json.loads(info.text)
                 id_user = all_data['user']['media']['nodes'][0]['owner']['id']
-                #Update the user_name with the user_id
+                # Update the user_name with the user_id
                 self.user_blacklist[user]=id_user
                 log_string = "Blacklisted user %s added with ID: %s" % (user, id_user)
                 self.write_log(log_string)
