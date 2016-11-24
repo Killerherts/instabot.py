@@ -11,8 +11,13 @@ import json
 import atexit
 import signal
 import itertools
+import sys
+import os
+from mmap import mmap
+import os.path
 
 from unfollow_protocol import unfollow_protocol
+
 
 class InstaBot:
     """
@@ -101,6 +106,41 @@ class InstaBot:
 
     # For new_auto_mod
     next_iteration = {"Like": 0, "Follow": 0, "Unfollow": 0, "Comments": 0}
+
+    def removeLine(self, num):
+        f=os.open(os.path.splitext(sys.argv[0])[0]+'.txt', os.O_RDWR)
+        m=mmap(f,0)
+        p=0
+        for i in range(num-1):
+            p=m.find('\n',p)+1
+        q=m.find('\n',p)
+        m[p:q] = ' '*(q-p)
+        os.close(f)
+
+    def writeOutput(self, log_string):
+        ####
+        # sys.argv[0] returns filename, 
+        # os.path.splitext returns a array (tuple) with 2 strings filename & file_extension
+        if os.path.isfile(os.path.splitext(sys.argv[0])[0]+'.txt'):
+            f = open(os.path.splitext(sys.argv[0])[0]+'.txt', 'r+')
+        else :
+            f = open(os.path.splitext(sys.argv[0])[0]+'.txt', 'w+')
+        
+        num_lines = sum(1 for line in f)
+        #delete lines when file have more than 50
+        while (num_lines > 50):
+            f.seek(0)
+            f.readline() #read the first line and throw it out
+            data = f.read() #read the rest
+            f.seek(0) #set the cursor to the top of the file
+            f.write(data) #write the data back
+            f.truncate() #set the file size to the current size
+            num_lines -= 1
+            
+        
+        print >> f, 'Info: ', log_string
+        f.close()
+        ####
 
     def __init__(self, login, password,
                  like_per_day=1000,
@@ -784,5 +824,11 @@ class InstaBot:
             # Log to log file.
             try:
                 self.logger.info(log_text)
+            except UnicodeEncodeError:
+                print("Your text has unicode problem!")
+        elif self.log_mod == 2:
+            self.writeOutput(log_text)
+            try:
+                print(log_text)
             except UnicodeEncodeError:
                 print("Your text has unicode problem!")
